@@ -178,11 +178,43 @@ public class TestLoadBalancerDrainingValve {
         runValve("DIS", false, true, true, "foo=bar");
     }
 
+    @Test
+    public void testDisabledInvalidSessionLeadingSlashes() throws Exception {
+        runValve("DIS", false, false, false, null, "//evil.example.com/path", "/evil.example.com/path");
+    }
+
+    @Test
+    public void testDisabledInvalidSessionOnlySlashes() throws Exception {
+        runValve("DIS", false, false, false, "foo=bar", "///", "/");
+    }
+
+    @Test
+    public void testDisabledInvalidSessionPathParamThenLeadingSlashes() throws Exception {
+        runValve("DIS", false, false, false, null, "/;JSESSIONID=cafebabe//evil.example.com/path",
+                "/evil.example.com/path");
+    }
+
+    @Test
+    public void testDisabledInvalidSessionPathParamMidPath() throws Exception {
+        runValve("DIS", false, false, false, null, "/foo;JSESSIONID=cafebabe/bar", "/foo/bar");
+    }
+
     private void runValve(String jkActivation,
                           boolean validSessionId,
                           boolean expectInvokeNext,
                           boolean enableIgnore,
                           String queryString) throws Exception {
+        runValve(jkActivation, validSessionId, expectInvokeNext, enableIgnore, queryString,
+                "/test/path", "/test/path");
+    }
+
+    private void runValve(String jkActivation,
+                          boolean validSessionId,
+                          boolean expectInvokeNext,
+                          boolean enableIgnore,
+                          String queryString,
+                          String requestURI,
+                          String expectedURI) throws Exception {
         IMocksControl control = EasyMock.createControl();
         ServletContext servletContext = control.createMock(ServletContext.class);
         Context ctx = control.createMock(Context.class);
@@ -191,7 +223,6 @@ public class TestLoadBalancerDrainingValve {
 
         String sessionCookieName = "JSESSIONID";
         String sessionId = "cafebabe";
-        String requestURI = "/test/path";
         SessionCookieConfig cookieConfig = new CookieConfig();
         cookieConfig.setDomain("example.com");
         cookieConfig.setName(sessionCookieName);
@@ -241,7 +272,7 @@ public class TestLoadBalancerDrainingValve {
                 // These two lines just mean EasyMock.expect(response.addCookie) but for a void method
                 response.addCookie(expectedCookie);
                 EasyMock.expect(ctx.getSessionCookieName()).andReturn(sessionCookieName); // Indirect call
-                String expectedRequestURI = requestURI;
+                String expectedRequestURI = expectedURI;
                 if(null != queryString)
                     expectedRequestURI = expectedRequestURI + '?' + queryString;
                 response.setHeader("Location", expectedRequestURI);
